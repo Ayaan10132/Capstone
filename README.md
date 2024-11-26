@@ -35,9 +35,14 @@ Clone the repo :
     $ python3 app.py 
 
 
-## Architecture
 
-## Video usage
+
+## Workflow 
+
+<img src="images/architecture.png"  width=547 height=250 alt="Workflow"/>
+
+
+
 
 
 
