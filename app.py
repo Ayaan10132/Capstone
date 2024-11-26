@@ -17,6 +17,9 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import ImmutableMultiDict
+from requests import get
+from flask import abort, request, render_template
+from functools import wraps
 
 from App.CheckMLUrl import *
 from App.ThreatFoxFeeds import *
@@ -32,6 +35,9 @@ from App.models import UserModel, db, login, keymodel, MalFilesModel, MalUrlsMod
 
 # Flask app configuration
 app = Flask(__name__, template_folder='templates', static_url_path='/static')
+UPLOAD_FOLDER = 'Uploads'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['YARA_TEST'] = YARATEST
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -276,56 +282,94 @@ def Profile_Settings():
 @app.route('/url', methods=['POST'])
 @login_required
 def scan_url():
-	if request.method == 'POST':
-		url  = request.form['urladdress']
-		geturltotal = VTotalAPI(url).run()
-		lexical_features = extract_data(url).results()
-		ml =  malicious_url_ML(url).run()
-		malur = MalUrlsModel(url ,"detected")
-		db.session.add(malur)
-		db.session.commit()
-		return render_template('results_url_scan.html',lexical_features = lexical_features , geturltotal = geturltotal , ml=ml)
-	else:
-		abort(450)
-
+    if request.method == 'POST':
+        url = request.form['urladdress']
+        geturltotal = VTotalAPI(url).run()
+        lexical_features = extract_data(url).results()
+        ml = malicious_url_ML(url).run()
+        malur = MalUrlsModel(url, "detected")
+        db.session.add(malur)
+        db.session.commit()
+        return render_template(
+            "results_url_scan.html",
+            lexical_features=lexical_features,
+            geturltotal=geturltotal,
+            ml=ml,
+        )
+    else:
+        abort(405)
+       
 
 @app.route('/file', methods=['POST'])
 @login_required
 def scan_file():
-	if request.method == 'POST':
-		file = request.files['file']
-		if file and allowed_file(file.filename):
-			#filename = secure_filename(hashlib.md5(file.filename).hexdigest()+'-'+file.filename)
-			filename = secure_filename(file.filename)
-			path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-			#yarapath = os.path.join(app.config['YARA_TEST'], filename)
-			file.save(path)
-			#for file in os.scandir(yarapath):
-			#os.remove(file.path)
-			#file.save(yarapath)
-			filepath = app.config['UPLOAD_FOLDER']+"//"+filename 
-			filesize = os.path. getsize(filepath)
-			#print(filepath)
-			calls = calls_nd_strings(filepath).run()
-			yaradetect = yaraScan(filepath).results()
-			signa = signateur(filepath).check_signateur()
-			Hashes_Data = FileInfo(filepath).run()
-			
-			peinfo = PEInfo(filepath).run()
-			st = strings_all(filepath)
-			strings = st.unicode_strings()
-			email = st.getemail()
-			ip = st.getip()
-			if  next(iter(yaradetect.values()))=="None":
-				detected= True
-			else: 
-				detected = False
-			malfil = MalFilesModel(file.filename, str(Hashes_Data["MD5"]) , str(Hashes_Data["Type"]) ,"detected")
-			db.session.add(malfil)
-			db.session.commit()
-			return render_template('results_file_scan.html',detected = detected , peinfo = peinfo, signaa = signa , filename = filename , filesize = filesize , email = email ,ip=ip , yaradetect = yaradetect,  strings = strings , calls = calls,Hashes_Data = Hashes_Data)
-	else:
-		abort(450)
+    if request.method == 'POST':
+        if 'file' not in request.files:
+            return 'No file uploaded'
+        
+        file = request.files['file']
+        if file.filename == '':
+            return 'No file selected'
+            
+        if file:
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            
+            File_Info = FileInfo(filepath)
+            Hashes_Data = File_Info.get_hashes()
+            
+            # Match parameters to MalFilesModel constructor
+            malfil = MalFilesModel(
+                name=file.filename,
+                md5hash=str(Hashes_Data["MD5"]),
+                ftype=str(Hashes_Data["Type"]),
+                status="active"
+            )
+            
+            # Rest of your scan_file logic...
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            print(f"Looking for file at: {filepath}")
+            filesize = os.path.getsize(filepath)
+
+            # Process the file
+            calls = calls_nd_strings(filepath).run()
+            yaradetect = yaraScan(filepath).results()
+            signa = signateur(filepath).check_signateur()
+            Hashes_Data = FileInfo(filepath).run()
+            peinfo = PEInfo(filepath).run()
+            st = strings_all(filepath)
+            strings = st.unicode_strings()
+            email = st.getemail()
+            ip = st.getip()
+
+            detected = next(iter(yaradetect.values())) != "None"
+            malfil = MalFilesModel(file.filename, str(Hashes_Data["MD5"]), str(Hashes_Data["Type"]), "detected")
+            db.session.add(malfil)
+            db.session.commit()
+
+            # Render the results
+            return render_template(
+                'results_file_scan.html',
+                detected=detected,
+                peinfo=peinfo,
+                signaa=signa,
+                filename=filename,
+                filesize=filesize,
+                email=email,
+                ip=ip,
+                yaradetect=yaradetect,
+                strings=strings,
+                calls=calls,
+                Hashes_Data=Hashes_Data
+            )
+        else:
+            # Return an error if the file is not valid
+            return "Invalid file or file type not allowed", 400
+    else:
+        # Return an error for unsupported HTTP methods
+        return "Method not allowed", 405
+
 
 
 if __name__ == "__main__":

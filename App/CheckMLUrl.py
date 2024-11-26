@@ -16,14 +16,28 @@ from sklearn.linear_model import LogisticRegression
 import json
 import math
 from collections import Counter
+from pathlib import Path
+import logging
 
-class malicious_url_ML():
+def read_url_data(filepath):
+    return pd.read_csv(
+        filepath,
+        delimiter=',',
+        on_bad_lines='skip'  # Updated parameter
+    )
 
-    def __init__(self,path):
-        self.path = path
+class malicious_url_ML:
+
+    def __init__(self, url):
+        self.url = url
+        self.current_dir = os.path.dirname(os.path.abspath(__file__))
+        self.base_dir = os.path.dirname(self.current_dir)  # Go up one level from App/
+        self.data_file = os.path.join(self.base_dir, 'data', 'data.csv')
         
-
-
+        # Setup logging
+        logging.basicConfig(level=logging.DEBUG)
+        self.logger = logging.getLogger(__name__)
+        self.logger.debug(f"Data file path: {self.data_file}")
 
     def entropy(self,s):
         p, lns = Counter(s), float(len(s))
@@ -31,20 +45,32 @@ class malicious_url_ML():
         
 
     def run(self):
-        vectorizer, lgs ,score  = self.TL()
-        X_predict = []
-        X_predict.append(str(self.path))
-        X_predict = vectorizer.transform(X_predict)
-        y_Predict = lgs.predict(X_predict)
-        score = str((score*100))
-        results={}
-        y_Predict = str(y_Predict).replace("['","").replace("']","").upper()
-        results = {
-            "path":self.path,
-            "etat":y_Predict,
-            "score":score[0:4],
-           }
-        return(results)
+        try:
+            # Verify file existence
+            if not os.path.exists(self.data_file):
+                alt_path = os.path.join(os.getcwd(), 'data', 'data.csv')
+                if os.path.exists(alt_path):
+                    self.data_file = alt_path
+                else:
+                    raise FileNotFoundError(f"Data file not found in either {self.data_file} or {alt_path}")
+
+            vectorizer, lgs, score = self.TL()
+            X_predict = [str(self.url)]  # Use self.url instead of self.path
+            X_predict = vectorizer.transform(X_predict)
+            y_Predict = lgs.predict(X_predict)
+
+            # Return results as dictionary
+            results = {
+                "url": self.url,  # Changed from path to url
+                "prediction": str(y_Predict[0]),
+                "confidence": str(round(score * 100, 2))
+            }
+            
+            return results
+
+        except Exception as e:
+            self.logger.error(f"Error in run(): {str(e)}")
+            raise
 
 
     def getTokens(self ,input):
@@ -64,24 +90,32 @@ class malicious_url_ML():
         return allTokens
 
     def TL(self):
-        allurls = './data/data.csv'	#path to our all urls file
-        allurlscsv = pd.read_csv(allurls,',',error_bad_lines=False)	#reading file
-        allurlsdata = pd.DataFrame(allurlscsv)	#converting to a dataframe
-
-        allurlsdata = np.array(allurlsdata)	#converting it into an array
-        random.shuffle(allurlsdata)	#shuffling
-
-        y = [d[1] for d in allurlsdata]	#all labels 
-        corpus = [d[0] for d in allurlsdata]	#all urls corresponding to a label (either good or bad)
-        vectorizer = TfidfVectorizer(tokenizer= self.getTokens)	#get a vector for each url but use our customized tokenizer
-        X = vectorizer.fit_transform(corpus)	#get the X vector
-
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)	#split into training and testing set 80/20 ratio
-
-        lgs = LogisticRegression(solver='lbfgs', max_iter=1000)	#using logistic regression
-        lgs.fit(X_train, y_train)
-        score = lgs.score(X_test, y_test)	#pring the score. It comes out to be 98%
-        return vectorizer, lgs , score
-
-
- 
+        try:
+            if not os.path.exists(self.data_file):
+                raise FileNotFoundError(f"Data file not found at: {self.data_file}")
+            
+            # Read and process data
+            allurlsdata = pd.read_csv(self.data_file, delimiter=',', on_bad_lines='skip')
+            allurlsdata = np.array(allurlsdata)
+            random.shuffle(allurlsdata)
+            
+            # Extract URLs and labels
+            urls = [d[0] for d in allurlsdata]
+            y = [d[1] for d in allurlsdata]
+            
+            # Initialize and fit vectorizer
+            vectorizer = TfidfVectorizer(tokenizer=self.getTokens)
+            X = vectorizer.fit_transform(urls)
+            
+            # Initialize and train logistic regression
+            lgs = LogisticRegression(max_iter=1000)
+            lgs.fit(X, y)
+            
+            # Calculate score
+            score = lgs.score(X, y)
+            
+            return vectorizer, lgs, score
+            
+        except Exception as e:
+            self.logger.error(f"Error in TL(): {str(e)}")
+            raise

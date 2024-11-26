@@ -168,25 +168,71 @@ class extract_data():
                 return "False"
 
     def Rightclick(self):
-        _response_ = self.GetResponse()
-        if re.findall(r"event.button ", _response_.text):
-            return "True"
-        else:
-            return "False"
+        try:
+            _response_ = self.GetResponse()
+            
+            # Handle both string and response object cases
+            content = _response_.text if hasattr(_response_, 'text') else str(_response_)
+            
+            # Look for common right-click prevention patterns
+            patterns = [
+                r"event\.button",
+                r"oncontextmenu\s*=",
+                r"preventDefault\(\)",
+                r"return\s+false"
+            ]
+            
+            for pattern in patterns:
+                if re.search(pattern, content, re.IGNORECASE):
+                    return True
+                    
+            return False
+            
+        except Exception as e:
+            print(f"Error checking right-click: {str(e)}")
+            return False
 
     def PopUpWindow(self):
-        _response_ = self.GetResponse()
-        if re.findall(r"alert\(", _response_.text):
-            return "True"
-        else:
-            return "False"
+        try:
+            _response_ = self.GetResponse()
 
+            content = _response_.text if hasattr(_response_, 'text') else str(_response_)
+
+            patterns = [
+                r"alert\(",
+                r"window\.open\(",
+                r"prompt\(",
+                r"confirm\("
+            ]
+            for pattern in patterns:
+                if re.search(pattern, content, re.IGNORECASE):
+                    return True
+            return False
+        except Exception as e:
+            print(f"Error checking pop-up window: {str(e)}")
+            return False
+            
     def Iframe(self):
-        _response_ = self.GetResponse()
-        if re.findall(r"[<iframe>|<frameBorder>]", _response_.text):
-            return "True"
-        else:
-            return "False"
-
-
- 
+        try:
+            _response_ = self.GetResponse()
+            
+            # Handle both string and response object cases
+            content = _response_.text if hasattr(_response_, 'text') else str(_response_)
+            
+            # Improved patterns for iframe detection
+            patterns = [
+                r"<iframe",
+                r"<frameBorder",
+                r"<frame\s+",
+                r"frameborder="
+            ]
+            
+            for pattern in patterns:
+                if re.search(pattern, content, re.IGNORECASE):
+                    return True
+                    
+            return False
+            
+        except Exception as e:
+            print(f"Error checking iframes: {str(e)}")
+            return False

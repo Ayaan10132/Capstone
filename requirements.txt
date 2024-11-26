@@ -1,0 +1,9 @@
+flask
+flask-mail
+Flask-Login
+Flask-SQLAlchemy
+whois
+scikit-learn
+virustotal-pyton
+pyexifinfo
+ssdeep

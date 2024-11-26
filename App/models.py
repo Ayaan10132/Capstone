@@ -27,19 +27,22 @@ class MalUrlsModel(db.Model):
 
 
 class MalFilesModel(db.Model):
-    __tablename__ = 'MalFiles'
- 
+    __tablename__ = 'malfiles'
+    
     id = db.Column(db.Integer, primary_key=True)
-    Name = db.Column(db.String(50), unique=False)
-    Hash = db.Column(db.String(50), unique=False)
-    ftype = db.Column(db.String(50), unique=False)
-    Status = db.Column(db.String(50), unique=False)
- 
-    def __init__(self, Name, Hash , ftype, Status):
-        self.Name = Name
-        self.Hash = Hash
-        self.ftype = ftype
-        self.Status = Status
+    filename = db.Column(db.String(100))
+    md5 = db.Column(db.String(100))
+    filetype = db.Column(db.String(100))
+    status = db.Column(db.String(100))
+
+    def __init__(self, name, md5hash, ftype, status):
+        self.filename = name
+        self.md5 = md5hash
+        self.filetype = ftype
+        self.status = status
+
+    def __repr__(self):
+        return f'<MalFile {self.name}>'
 
 
 

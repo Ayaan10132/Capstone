@@ -23,8 +23,17 @@ class VTotalAPI():
 			scan_id = url_resp["scan_id"]
 			analysis_resp = vtotal.request("url/report", params={"resource": scan_id})
 			b = analysis_resp.json()
-			return b["scans"]
-		except:
-			return {"error check connection please !!"}
+			results = {}  # Initialize as dict instead of set
+			
+			# Convert any set results to dictionary
+			# Example:
+			# results['status'] = 'malicious/benign'
+			# results['score'] = score
+			# results['detections'] = detections
+			
+			return results  # Return dict instead of set
+			
+		except Exception as e:
+			return {'error': str(e)}  # Return error as dict
 
 
